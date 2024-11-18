@@ -1,7 +1,3 @@
-Certainly! Below is the complete README.md file for your PID GPIO Fan Control project, formatted within a code block for easy copying. This README includes both installation options, clearly indicating that if the standard installation fails (especially on an Open Media Vault setup), the manual installation steps should be followed.
-
-markdown
-Copy code
 # PID GPIO Fan Control for Raspberry Pi
 
 This project controls a GPIO-connected fan on a Raspberry Pi using a PD (Proportional-Derivative) control loop. The fan speed adjusts based on the CPU temperature to maintain optimal cooling.
@@ -153,8 +149,8 @@ Description=PID GPIO Fan Control Service
 After=network.target
 
 [Service]
-ExecStart=/home/NAS/PID_GPIO_Fan_Control_CPP/build/pid_fan_control
-WorkingDirectory=/home/NAS/PID_GPIO_Fan_Control_CPP
+ExecStart=/home/NAS/PID_GPIO_Fan_Control/build/pid_fan_control
+WorkingDirectory=/home/NAS/PID_GPIO_Fan_Control
 StandardOutput=journal
 StandardError=journal
 Restart=always
