@@ -76,22 +76,17 @@ make all
 ```
 
 ### **Usage**
-**Running the Program (Quiet by Default)**
+**Running the Program (Quiet by Default)**:
+
 Execute the compiled program with appropriate permissions. GPIO access typically requires root privileges.
 
 ```bash
-sudo ./build/pid_fan_control
+make run
 ```
 **Note:** By default, the program runs in quiet mode without logging.
 
-**Displaying Help**
-To view the help message with usage options:
+**Enabling Logging at Runtime**:
 
-```bash
-./build/pid_fan_control --help
-```
-
-**Enabling Logging at Runtime**
 To enable or disable logging during runtime, send the SIGHUP signal to the running process.
 
 1. **Find the Process ID (PID):**
@@ -123,7 +118,7 @@ Logging disabled.
 All tunable parameters are defined in include/FanControl.h under the Definitions section. Adjust them as needed:
 
 - FAN_GPIO_PIN: GPIO pin connected to the fan.
-- TEMP_THRESHOLD & TEMP_MAX: Temperature thresholds.
+- TEMP_THRESHOLD: Temperature threshold for starting fan PWM.
 - KP & KD: PD controller gains.
 - PWM_RANGE & PWM_FREQUENCY: PWM settings.
 - SAMPLE_INTERVAL_MS: Sampling interval.

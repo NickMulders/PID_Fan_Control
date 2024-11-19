@@ -22,7 +22,6 @@ FanControl::FanControl() {
 FanControl::~FanControl() {
     // Cleanup: Turn off the fan
     softPwmWrite(FAN_GPIO_PIN, 0); // Ensure fan is turned off
-    // WiringPi does not provide a termination function
 }
 
 /**
@@ -114,16 +113,6 @@ int FanControl::MapTemperatureToPWM(double temperature, double& previousError) {
 }
 
 /**
- * @brief Prints the usage instructions.
- * @param progName Name of the program.
- */
-void FanControl::PrintUsage(const char* progName) {
-    std::cout << "Usage: " << progName << " [OPTIONS]\n"
-              << "Options:\n"
-              << "  --help, -h  Show this help message\n";
-}
-
-/**
  * @brief Toggles the logging state.
  * @param signum Signal number.
  */
@@ -144,23 +133,6 @@ void FanControl::ToggleLogging(int signum) {
  * @return Exit status.
  */
 int main(int argc, char* argv[]) {
-    // Parse command-line arguments
-    for(int i = 1; i < argc; ++i){
-        if(strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0){
-            // Create a temporary FanControl object to use PrintUsage
-            FanControl temp;
-            temp.PrintUsage(argv[0]);
-            return 0;
-        }
-        else{
-            std::cerr << "Unknown option: " << argv[i] << std::endl;
-            // Create a temporary FanControl object to use PrintUsage
-            FanControl temp;
-            temp.PrintUsage(argv[0]);
-            return 1;
-        }
-    }
-
     // Create FanControl object and run
     FanControl fanControl;
     fanControl.Run();

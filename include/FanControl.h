@@ -18,7 +18,7 @@
 #define FAN_GPIO_PIN 1          // WiringPi pin 1 (BCM_GPIO 18)
 
 // Temperature Thresholds (in degrees Celsius)
-#define TEMP_THRESHOLD 60       // Temperature to start fan
+#define TEMP_THRESHOLD 30       // Temperature to start fan
 
 // PD Controller Parameters
 //TODO: Tune the PD values (Maybe add Integral if necessary)
@@ -42,7 +42,6 @@ public:
     FanControl();
     ~FanControl();
     void Run();
-    void PrintUsage(const char* progName);
 
 private:
     double ReadCPUTemperature();
