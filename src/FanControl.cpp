@@ -1,19 +1,25 @@
 #include "FanControl.h"
 
 /* ========== Global Variables ========== */
-volatile sig_atomic_t LOG_ENABLED = 0; // Quiet by default
-
+volatile sig_atomic_t LOG_ENABLED = 0; // Logging is disabled by default
 
 /* ========== Functionality ========== */
 
 /**
- * @brief Constructor. Initializes GPIO and sets up signal handling.
+ * @brief Constructor. Initializes GPIO, PID controller, and sets up signal handling.
  */
-FanControl::FanControl() {
+FanControl::FanControl()
+    : pid_(2.0, 0.5, 1.0, 0.5, 0.0, PWM_RANGE, -50.0, 50.0, 0.1, 1.0, 1.0) {
     // Set up signal handler for toggling logging (e.g., SIGHUP)
-    // This allows the program to handle SIGHUP signals asynchronously.
     std::signal(SIGHUP, FanControl::ToggleLogging);
     InitializeGPIO();
+
+    // Configure PID Controller
+    pid_.setOutputLimits(0.0, PWM_RANGE);          // PWM output between 0 and 100
+    pid_.setIntegralLimits(-50.0, 50.0);          // Integral windup limits
+    pid_.setSampleTime(0.5);                      // 0.5 seconds
+    pid_.setDerivativeFilterCoefficient(0.1);      // Derivative filter coefficient
+    pid_.setSetpointWeights(1.0, 1.0);            // Setpoint weighting
 }
 
 /**
@@ -28,11 +34,9 @@ FanControl::~FanControl() {
  * @brief Runs the main control loop.
  */
 void FanControl::Run() {
-    double previousError = 0.0;
-
     while (true) {
         double currentTemp = ReadCPUTemperature();
-        int pwmValue = MapTemperatureToPWM(currentTemp, previousError); // Derivative is handled inside
+        int pwmValue = ComputeFanPWM(currentTemp);
 
         softPwmWrite(FAN_GPIO_PIN, pwmValue);
 
@@ -55,7 +59,13 @@ double FanControl::ReadCPUTemperature() {
 
     if (tempFile.is_open()) {
         std::getline(tempFile, tempStr);
-        temp = std::stod(tempStr) / 1000.0; // Convert millidegrees to degrees
+        try {
+            temp = std::stod(tempStr) / 1000.0; // Convert millidegrees to degrees
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid temperature format." << std::endl;
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Temperature value out of range." << std::endl;
+        }
         tempFile.close();
     } else {
         std::cerr << "Unable to read CPU temperature." << std::endl;
@@ -75,40 +85,30 @@ void FanControl::InitializeGPIO() {
 
     // Setup the GPIO pin for PWM output
     pinMode(FAN_GPIO_PIN, PWM_OUTPUT);
-    softPwmCreate(FAN_GPIO_PIN, 0, PWM_RANGE);
+    if (softPwmCreate(FAN_GPIO_PIN, 0, PWM_RANGE) != 0) {
+        std::cerr << "Failed to initialize soft PWM on pin " << FAN_GPIO_PIN << std::endl;
+        exit(1);
+    }
 }
 
 /**
- * @brief Maps the current temperature to a PWM value using a PD controller.
+ * @brief Computes the PWM value for the fan using the PID controller.
  * @param temperature Current temperature in degrees Celsius.
- * @param previousError Previous temperature error.
  * @return PWM value corresponding to the temperature.
  */
-int FanControl::MapTemperatureToPWM(double temperature, double& previousError) {
-    double error = 0.0;
-    double dError = 0.0;
-
+int FanControl::ComputeFanPWM(double temperature) {
     if (temperature < TEMP_THRESHOLD) {
-        // Temperature below threshold; turn off fan
-        previousError = 0.0;
+        // Turn off GPIO fan
+        pid_.reset(); // Reset PID controller to prevent integral windup
         return 0;
     } else {
-        // Calculate error (how much we are above the threshold)
-        error = temperature - TEMP_THRESHOLD;
+        double setpoint = TEMP_THRESHOLD;
+        double pwmOutput = pid_.compute(setpoint, temperature);
 
-        // Calculate derivative (rate of change)
-        dError = error - previousError;
+        // Clamp PWM output to PWM_RANGE
+        pwmOutput = std::max(0.0, std::min(pwmOutput, static_cast<double>(PWM_RANGE)));
 
-        // PD Control
-        double output = (KP * error) + (KD * dError);
-
-        // Clamp output to PWM range
-        if (output > PWM_RANGE) output = PWM_RANGE;
-        if (output < 0) output = 0;
-
-        previousError = error;
-
-        return static_cast<int>(output);
+        return static_cast<int>(pwmOutput);
     }
 }
 
@@ -121,21 +121,4 @@ void FanControl::ToggleLogging(int signum) {
         LOG_ENABLED = !LOG_ENABLED;
         std::cout << "Logging " << (LOG_ENABLED ? "enabled." : "disabled.") << std::endl;
     }
-}
-
-
-/* ========== Main ========== */
-
-/**
- * @brief Entry point of the program.
- * @param argc Argument count.
- * @param argv Argument vector.
- * @return Exit status.
- */
-int main(int argc, char* argv[]) {
-    // Create FanControl object and run
-    FanControl fanControl;
-    fanControl.Run();
-
-    return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef FANCONTROL_H
-#define FANCONTROL_H
+#ifndef FAN_CONTROL_H
+#define FAN_CONTROL_H
 
 #include <wiringPi.h>
 #include <softPwm.h>
@@ -11,6 +11,7 @@
 #include <thread>
 #include <cstring>
 #include <csignal>
+#include "PIDController.h" // Include the PIDController
 
 /* ========== Definitions ========== */
 
@@ -20,14 +21,8 @@
 // Temperature Thresholds (in degrees Celsius)
 #define TEMP_THRESHOLD 30       // Temperature to start fan
 
-// PD Controller Parameters
-//TODO: Tune the PD values (Maybe add Integral if necessary)
-#define KP 2.0                  // Proportional gain
-#define KD 0.5                  // Derivative gain
-
 // PWM Parameters
 #define PWM_RANGE 100           // PWM range (0-100)
-#define PWM_FREQUENCY 100       // PWM frequency in Hz
 
 // Sampling Interval
 #define SAMPLE_INTERVAL_MS 2000  // 2 seconds
@@ -46,8 +41,11 @@ public:
 private:
     double ReadCPUTemperature();
     void InitializeGPIO();
-    int MapTemperatureToPWM(double temperature, double& previousError);
+    int ComputeFanPWM(double temperature);
     static void ToggleLogging(int signum);
+
+    // PID Controller instance
+    PIDController pid_;
 };
 
-#endif // FANCONTROL_H
+#endif // FAN_CONTROL_H
