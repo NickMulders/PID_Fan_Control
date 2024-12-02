@@ -1,7 +1,7 @@
 #include "FanControl.h"
 
 /* ========== Global Variables ========== */
-volatile sig_atomic_t LOG_ENABLED = 0; // Logging is disabled by default
+volatile sig_atomic_t LOG_ENABLED = false; // Logging is disabled by default
 
 /* ========== Functionality ========== */
 
@@ -9,13 +9,13 @@ volatile sig_atomic_t LOG_ENABLED = 0; // Logging is disabled by default
  * @brief Constructor. Initializes GPIO, PID controller, and sets up signal handling.
  */
 FanControl::FanControl()
-    : pid_(2.0, 0.5, 1.0, 0.5, 0.0, PWM_RANGE, -50.0, 50.0, 0.1, 1.0, 1.0) {
+    : pid_(2.0, 0.5, 1.0, 0.5, 0.0, MAX_PWM, -50.0, 50.0, 0.1, 1.0, 1.0) {
     // Set up signal handler for toggling logging (e.g., SIGHUP)
     std::signal(SIGHUP, FanControl::ToggleLogging);
     InitializeGPIO();
 
     // Configure PID Controller
-    pid_.setOutputLimits(0.0, PWM_RANGE);          // PWM output between 0 and 100
+    pid_.setOutputLimits(0.0, MAX_PWM);          // PWM output between 0 and 100
     pid_.setIntegralLimits(-50.0, 50.0);          // Integral windup limits
     pid_.setSampleTime(0.5);                      // 0.5 seconds
     pid_.setDerivativeFilterCoefficient(0.1);      // Derivative filter coefficient
@@ -27,7 +27,7 @@ FanControl::FanControl()
  */
 FanControl::~FanControl() {
     // Cleanup: Turn off the fan
-    softPwmWrite(FAN_GPIO_PIN, 0); // Ensure fan is turned off
+    softPwmWrite(FAN_GPIO_PIN, 0);
 }
 
 /**
@@ -38,13 +38,41 @@ void FanControl::Run() {
         double currentTemp = ReadCPUTemperature();
         int pwmValue = ComputeFanPWM(currentTemp);
 
-        softPwmWrite(FAN_GPIO_PIN, pwmValue);
+        // Check if the fan needs to be started
+        if (pwmValue > 0) {
+            if (pwmValue != lastPwmValue) {
+                // Check if the fan needs to receive a KICK start
+                if (pwmValue < PWM_THRESHOLD) {
+                    softPwmWrite(FAN_GPIO_PIN, KICK_PWM);
+                    if (LOG_ENABLED) {
+                        std::cout << "Applying KICK PWM: " << KICK_PWM << "%" << std::endl;
+                    }
 
+                    // Wait for the kick duration to allow the fan to start
+                    std::this_thread::sleep_for(std::chrono::milliseconds(KICK_DURATION_MS));
+                }
+
+                // Set the desired PWM value to control the fan speed
+                lastPwmValue = pwmValue;
+                softPwmWrite(FAN_GPIO_PIN, pwmValue);
+                isFanRunning = true;
+            }
+        } else {
+            if (isFanRunning) {
+                softPwmWrite(FAN_GPIO_PIN, 0);
+                isFanRunning = false;
+            }
+        }
+        
         if (LOG_ENABLED) {
             std::cout << "CPU Temp: " << currentTemp << "°C | Fan PWM: " << pwmValue << "%" << std::endl;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(SAMPLE_INTERVAL_MS));
+        // Calculate the remaining sleep time to maintain consistent loop duration
+        size_t sleepDuration = (pwmValue < PWM_THRESHOLD) ? 
+                             (SAMPLE_INTERVAL_MS - KICK_DURATION_MS) : 
+                             SAMPLE_INTERVAL_MS;
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration));
     }
 }
 
@@ -85,7 +113,7 @@ void FanControl::InitializeGPIO() {
 
     // Setup the GPIO pin for PWM output
     pinMode(FAN_GPIO_PIN, PWM_OUTPUT);
-    if (softPwmCreate(FAN_GPIO_PIN, 0, PWM_RANGE) != 0) {
+    if (softPwmCreate(FAN_GPIO_PIN, 0, MAX_PWM) != 0) {
         std::cerr << "Failed to initialize soft PWM on pin " << FAN_GPIO_PIN << std::endl;
         exit(1);
     }
@@ -105,8 +133,11 @@ int FanControl::ComputeFanPWM(double temperature) {
         double setpoint = TEMP_THRESHOLD;
         double pwmOutput = pid_.compute(setpoint, temperature);
 
-        // Clamp PWM output to PWM_RANGE
-        pwmOutput = std::max(0.0, std::min(pwmOutput, static_cast<double>(PWM_RANGE)));
+        // Clamp PWM output to MAX_PWM
+        pwmOutput = std::max(0.0, std::min(pwmOutput, static_cast<double>(MAX_PWM)));
+
+        // Ensure PWM is at least PWM_START_VALUE
+        pwmOutput = std::max(static_cast<double>(PWM_START_VALUE), pwmOutput);
 
         return static_cast<int>(pwmOutput);
     }

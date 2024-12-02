@@ -16,16 +16,21 @@
 /* ========== Definitions ========== */
 
 // GPIO Pin Definitions
-#define FAN_GPIO_PIN 1          // WiringPi pin 1 (BCM_GPIO 18)
+#define FAN_GPIO_PIN 26             // WiringPi pin 26 (BCM_GPIO 12)
 
 // Temperature Thresholds (in degrees Celsius)
-#define TEMP_THRESHOLD 30       // Temperature to start fan
+#define TEMP_THRESHOLD 60          // Temperature threshold in °C to turn on/off the fan
 
 // PWM Parameters
-#define PWM_RANGE 100           // PWM range (0-100)
+#define PWM_START_VALUE      20    // Starting PWM value (%)
+#define PWM_THRESHOLD        50    // Threshold to apply PWM kick (%)
+#define KICK_PWM             60    // PWM value for the kick (%)
+#define KICK_DURATION_MS     100   // Duration of the kick in milliseconds
+#define MAX_PWM              100   // Maximum PWM value (%)
+#define MIN_PWM              PWM_START_VALUE // Minimum PWM value (%)
 
 // Sampling Interval
-#define SAMPLE_INTERVAL_MS 2000  // 2 seconds
+#define SAMPLE_INTERVAL_MS  1000    // 1 second
 
 /* ========== Global Variables ========== */
 extern volatile sig_atomic_t LOG_ENABLED;
@@ -39,6 +44,9 @@ public:
     void Run();
 
 private:
+    int lastPwmValue = 0;
+    bool isFanRunning = false;
+
     double ReadCPUTemperature();
     void InitializeGPIO();
     int ComputeFanPWM(double temperature);
