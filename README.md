@@ -18,9 +18,37 @@ This project controls a GPIO-connected fan on a Raspberry Pi using a PD (Proport
   - Necessary resistors or transistors if required by your fan
 
 - **Software:**
-  - Open Media Vault (OMV) installed on Raspberry Pi
   - WiringPi library
   - C++11 compatible compiler
+
+## Wiring Diagram
+
+![Circuit Diagram](./images/RPI4B_PWM_Regulator_Circuit_Diagram.png)
+
+**Components Used:**
+
+- **Raspberry Pi 4B 8GB RAM:**  
+  The RPI serves as the main controller running the fan control software. It monitors its CPU temperature and processes the PD controller to adjust the fan speeds accordingly.
+
+- **2x 5V GPIO Fans:**  
+  These fans are connected to the GPIO pins and are controlled via PWM signals. They adjust their speed based on the temperature readings to provide efficient cooling while minimizing power consumption.
+
+- **MOSFET PWM Regulator Controller DC 5V-36V:**  
+  This module is used to drive the fans because the fans operate on **5V**, and the Raspberry Pi's **3.3V GPIO pins** are insufficient to supply the necessary power. The MOSFET module acts as a switch, allowing the low-power GPIO pin to control the higher power required by the fans safely.
+
+**PWM Kick Mechanism:**
+
+The fans can operate reliably from **20% PWM**. However, to ensure the fans start spinning correctly, a **100ms KICK** of **60% PWM** is applied at startup. This temporary higher PWM provides the necessary torque to initiate the fan's motion.
+
+**Power Consumption:**
+
+After measuring the circuit with an ammeter, we can verify the following:
+- **At 50% PWM:** The fans consume **63 mA**.
+- **At 100% PWM:** The fans consume **106 mA**.
+
+**Note:** The Raspberry Pi 4B draws power for its 5V GPIO pins directly from the USB-C VIN port. This setup ensures that the current draw from the connected GPIO fans does not interfere with the Raspberry Pi's internal processing, provided that the USB-C power supply is adequately rated to handle the combined load of the Raspberry Pi and the fans.
+
+
 
 ## Installation
 
