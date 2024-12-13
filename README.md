@@ -1,11 +1,12 @@
 # PID GPIO Fan Control for Raspberry Pi
 
-This project controls a GPIO-connected fan on a Raspberry Pi using a PD (Proportional-Derivative) control loop. The fan speed adjusts based on the CPU temperature to maintain optimal cooling.
+This project controls a GPIO-connected fan on a Raspberry Pi using a PID (Proportional-Integral-Derivative) control loop. The fan speed adjusts based on the CPU temperature to maintain optimal cooling.
 
 ## Features
 
 - **CPU Temperature Monitoring:** Continuously monitors the Raspberry Pi's CPU temperature.
-- **PD Controller:** Adjusts fan speed using a Proportional-Derivative controller to maintain optimal temperatures.
+- **PID Controller:** Adjusts fan speed using a Proportional-Derivative controller to maintain optimal temperatures.
+- **Tuned PID Control Loop** Inside the simulink_models/ directory there is a Simulink project which was used to tune the P, I and D values.
 - **Dynamic Logging:** Enable or disable logging via command-line arguments and toggle logging at runtime using signals.
 - **Modular Codebase:** Organized with separate header and source files for maintainability.
 - **Easy Configuration:** All tunable parameters are defined using macros for easy adjustments.
@@ -28,7 +29,7 @@ This project controls a GPIO-connected fan on a Raspberry Pi using a PD (Proport
 **Components Used:**
 
 - **Raspberry Pi 4B 8GB RAM:**  
-  The RPI serves as the main controller running the fan control software. It monitors its CPU temperature and processes the PD controller to adjust the fan speeds accordingly.
+  The RPI serves as the main controller running the fan control software. It monitors its CPU temperature and processes the PID controller to adjust the fan speeds accordingly.
 
 - **2x 5V GPIO Fans:**  
   These fans are connected to the GPIO pins and are controlled via PWM signals. They adjust their speed based on the temperature readings to provide efficient cooling while minimizing power consumption.
@@ -147,7 +148,7 @@ All tunable parameters are defined in include/FanControl.h under the Definitions
 
 - FAN_GPIO_PIN: GPIO pin connected to the fan.
 - TEMP_THRESHOLD: Temperature threshold for starting fan PWM.
-- KP & KD: PD controller gains.
+- KP, KI & KD: PID controller gains.
 - PWM_RANGE & PWM_FREQUENCY: PWM settings.
 - SAMPLE_INTERVAL_MS: Sampling interval.
 
