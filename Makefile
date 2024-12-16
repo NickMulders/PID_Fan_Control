@@ -4,42 +4,82 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -O2 -std=c++11
 
+# C Compiler for WiringPi
+CC = gcc
+CFLAGS = -Wall -Wextra -O2
+
+# Include directories
+INCDIRS = include \
+          libs/wiringPi/wiringPi \
+          libs/wiringPi/devLib \
+          libs/wiringPi/gpio \
+          libs/wiringPi/wiringPiD
+CXXFLAGS += $(addprefix -I, $(INCDIRS))
+CFLAGS += $(addprefix -I, $(INCDIRS))
+
 # Libraries
-LIBS = -lwiringPi -lpthread
+LIBS = -lpthread  # Removed -lwiringPi as we'll link the static library directly
 
 # Directories
 SRCDIR = src
-INCDIR = include
 OBJDIR = build
 BINDIR = build
+WIRINGPI_DIR = libs/wiringPi
 
-# Source and object files
+# WiringPi build variables
+WIRINGPI_LIBDIR = $(OBJDIR)/libs
+WIRINGPI_LIB = $(WIRINGPI_LIBDIR)/libwiringPi.a
+
+# Collect WiringPi C sources (excluding examples and test)
+WIRINGPI_SOURCES = $(shell find $(WIRINGPI_DIR) -type f -name "*.c" \
+                           ! -path "*/examples/*" \
+                           ! -path "*/test/*")
+
+# Convert .c sources to .o objects in build/libs/
+WIRINGPI_OBJECTS = $(WIRINGPI_SOURCES:$(WIRINGPI_DIR)/%.c=$(WIRINGPI_LIBDIR)/%.o)
+
+# Source and object files for main project
 SOURCES = $(wildcard $(SRCDIR)/*.cpp)
 OBJECTS = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SOURCES))
 
-# Target
+# Target executable
 TARGET = $(BINDIR)/pid_fan_control
 
 # Default target
 all: $(TARGET)
 
-# Linking
-$(TARGET): $(OBJECTS)
+# WiringPi static library
+$(WIRINGPI_LIB): $(WIRINGPI_OBJECTS)
+	@echo "Creating WiringPi static library..."
+	@mkdir -p $(WIRINGPI_LIBDIR)
+	ar rcs $@ $^
+
+# Compile WiringPi object files
+$(WIRINGPI_LIBDIR)/%.o: $(WIRINGPI_DIR)/%.c
+	@echo "Compiling WiringPi source: $<"
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Linking main project
+$(TARGET): $(OBJECTS) $(WIRINGPI_LIB)
+	@echo "Linking main application..."
 	@mkdir -p $(BINDIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS) -L$(WIRINGPI_LIBDIR) -lwiringPi $(LIBS)
 
-# Compilation
+# Compile main project object files
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
-	@mkdir -p $(OBJDIR)
-	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c -o $@ $<
+	@echo "Compiling source: $<"
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-# Clean
+# Clean build artifacts
 clean:
-	rm -rf $(OBJDIR)/*.o $(TARGET)
+	@echo "Cleaning build artifacts..."
+	rm -rf $(OBJDIR)/*.o $(TARGET) $(WIRINGPI_LIBDIR)/*.o $(WIRINGPI_LIB)
 
-# Run
+# Run the application
 run:
-	sudo ./build/pid_fan_control
+	./build/pid_fan_control
 
 # Phony targets
 .PHONY: all clean run
