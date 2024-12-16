@@ -1,25 +1,20 @@
 #include "FanControl.h"
 
-/* ========== Global Variables ========== */
-volatile sig_atomic_t LOG_ENABLED = false; // Logging is disabled by default
-
 /* ========== Functionality ========== */
 
 /**
- * @brief Constructor. Initializes GPIO, PID controller, and sets up signal handling.
+ * @brief Constructor. Initializes GPIO, PID controller.
  */
 FanControl::FanControl()
-    : pid_(2.0, 0.5, 1.0, 0.5, 0.0, MAX_PWM, -50.0, 50.0, 0.1, 1.0, 1.0) {
-    // Set up signal handler for toggling logging (e.g., SIGHUP)
-    std::signal(SIGHUP, FanControl::ToggleLogging);
+    : pid_(5.30562491183526, 5.21069262830874, 1.72236927768401, 0.5, 0.0, MAX_PWM, -50.0, 50.0, 0.1, 1.0, 1.0) {
     InitializeGPIO();
 
     // Configure PID Controller
-    pid_.setOutputLimits(0.0, MAX_PWM);          // PWM output between 0 and 100
-    pid_.setIntegralLimits(-50.0, 50.0);          // Integral windup limits
-    pid_.setSampleTime(0.5);                      // 0.5 seconds
-    pid_.setDerivativeFilterCoefficient(0.1);      // Derivative filter coefficient
-    pid_.setSetpointWeights(1.0, 1.0);            // Setpoint weighting
+    pid_.setOutputLimits(0.0, MAX_PWM);           // PWM output between 0 and 100
+    pid_.setIntegralLimits(-50.0, 50.0);         // Integral windup limits
+    pid_.setSampleTime(0.02);                    // 20 ms sample time based on plant dynamics
+    pid_.setDerivativeFilterCoefficient(0.1);    // Derivative filter coefficient
+    pid_.setSetpointWeights(1.0, 1.0);           // Setpoint weighting
 }
 
 /**
@@ -28,50 +23,64 @@ FanControl::FanControl()
 FanControl::~FanControl() {
     // Cleanup: Turn off the fan
     softPwmWrite(FAN_GPIO_PIN, 0);
+    std::cout << "Fans have been disabled." << std::endl;
 }
 
 /**
  * @brief Runs the main control loop.
  */
 void FanControl::Run() {
+    // Disable buffering for std::cout to ensure real-time log output
+    std::cout << std::unitbuf;
+
+    std::cout << "Starting PID GPIO Fan Control Application..." << std::endl;
+
+    // Static variable to track if PWM Kick has been applied
+    static bool hasKicked = false;
+
     while (true) {
         double currentTemp = ReadCPUTemperature();
         int pwmValue = ComputeFanPWM(currentTemp);
 
         // Check if the fan needs to be started
         if (pwmValue > 0) {
+            if (!isFanRunning) {
+                std::cout << "Fans have been enabled." << std::endl;
+                isFanRunning = true;
+                hasKicked = false;  // Reset the kick flag when fans are enabled
+            }
+
             if (pwmValue != lastPwmValue) {
                 // Check if the fan needs to receive a KICK start
-                if (pwmValue < PWM_THRESHOLD) {
+                if (pwmValue < PWM_THRESHOLD && !hasKicked) {
                     softPwmWrite(FAN_GPIO_PIN, KICK_PWM);
-                    if (LOG_ENABLED) {
-                        std::cout << "Applying KICK PWM: " << KICK_PWM << "%" << std::endl;
-                    }
+                    std::cout << "Applying KICK PWM: " << KICK_PWM << "%" << std::endl;
 
                     // Wait for the kick duration to allow the fan to start
                     std::this_thread::sleep_for(std::chrono::milliseconds(KICK_DURATION_MS));
+
+                    hasKicked = true;  // Mark that the kick has been applied
                 }
 
                 // Set the desired PWM value to control the fan speed
                 lastPwmValue = pwmValue;
                 softPwmWrite(FAN_GPIO_PIN, pwmValue);
-                isFanRunning = true;
             }
+
+            std::cout << "CPU Temp: " << currentTemp << "°C | Fan PWM: " << pwmValue << "%" << std::endl;
         } else {
             if (isFanRunning) {
                 softPwmWrite(FAN_GPIO_PIN, 0);
                 isFanRunning = false;
+                hasKicked = false;  // Reset the kick flag when fans are disabled
+                std::cout << "Fans have been disabled." << std::endl;
             }
-        }
-        
-        if (LOG_ENABLED) {
-            std::cout << "CPU Temp: " << currentTemp << "°C | Fan PWM: " << pwmValue << "%" << std::endl;
         }
 
         // Calculate the remaining sleep time to maintain consistent loop duration
         size_t sleepDuration = (pwmValue < PWM_THRESHOLD) ? 
-                             (SAMPLE_INTERVAL_MS - KICK_DURATION_MS) : 
-                             SAMPLE_INTERVAL_MS;
+                                 (SAMPLE_INTERVAL_MS - KICK_DURATION_MS) : 
+                                 SAMPLE_INTERVAL_MS;
         std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration));
     }
 }
@@ -117,6 +126,8 @@ void FanControl::InitializeGPIO() {
         std::cerr << "Failed to initialize soft PWM on pin " << FAN_GPIO_PIN << std::endl;
         exit(1);
     }
+
+    std::cout << "GPIO initialized successfully on pin " << FAN_GPIO_PIN << "." << std::endl;
 }
 
 /**
@@ -140,16 +151,5 @@ int FanControl::ComputeFanPWM(double temperature) {
         pwmOutput = std::max(static_cast<double>(PWM_START_VALUE), pwmOutput);
 
         return static_cast<int>(pwmOutput);
-    }
-}
-
-/**
- * @brief Toggles the logging state.
- * @param signum Signal number.
- */
-void FanControl::ToggleLogging(int signum) {
-    if (signum == SIGHUP) {
-        LOG_ENABLED = !LOG_ENABLED;
-        std::cout << "Logging " << (LOG_ENABLED ? "enabled." : "disabled.") << std::endl;
     }
 }

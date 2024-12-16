@@ -19,7 +19,7 @@
 #define FAN_GPIO_PIN 26             // WiringPi pin 26 (BCM_GPIO 12)
 
 // Temperature Thresholds (in degrees Celsius)
-#define TEMP_THRESHOLD 60          // Temperature threshold in °C to turn on/off the fan
+#define TEMP_THRESHOLD 30          // Temperature threshold in °C to turn on/off the fan
 
 // PWM Parameters
 #define PWM_START_VALUE      20    // Starting PWM value (%)
